@@ -1,0 +1,6 @@
+/continuum-plugin-stream-dashboard
+/web/dist
+/web/node_modules
+/web/*.tsbuildinfo
+/web/vite.config.d.ts
+/web/vite.config.js
