@@ -29,6 +29,7 @@ func New(d Deps) http.Handler {
 	r.Use(middleware.Recoverer)
 
 	r.Route("/api", func(r chi.Router) {
+		r.Use(requireStore(d))
 		r.Get("/status", hStatus(d))
 		r.Get("/sessions", hSessions(d))
 		r.Get("/history", hHistory(d))
@@ -44,6 +45,18 @@ func New(d Deps) http.Handler {
 		r.Get("/", hSPA(d))
 	}
 	return r
+}
+
+func requireStore(d Deps) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if d.Store == nil {
+				writeErr(w, http.StatusServiceUnavailable, "not_configured", "stream dashboard plugin is not configured")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func hStatus(d Deps) http.HandlerFunc {
@@ -82,8 +95,8 @@ func hCounts(d Deps) http.HandlerFunc {
 
 func hHistory(d Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		page := intQuery(r, "page", 1)
-		limit := intQuery(r, "limit", 50)
+		page := boundedIntQuery(r, "page", 1, 1, 10000)
+		limit := boundedIntQuery(r, "limit", 50, 1, 500)
 		policy := retentionPolicy(r, d.HistoryRetentionPolicy)
 		history, err := d.Store.PlaybackHistory(r.Context(), limit, (page-1)*limit, policy, true)
 		if err != nil {
@@ -202,8 +215,18 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func intQuery(r *http.Request, key string, fallback int) int {
+	return boundedIntQuery(r, key, fallback, 1, 0)
+}
+
+func boundedIntQuery(r *http.Request, key string, fallback, min, max int) int {
 	if v := r.URL.Query().Get(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			if n < min {
+				return min
+			}
+			if max > 0 && n > max {
+				return max
+			}
 			return n
 		}
 	}

@@ -17,6 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { hasCoords } from "./geo";
+import { pluginMountPath } from "./mountPath";
 import WorldMap from "./WorldMap";
 import type { Counts, Overview, PlaybackHistoryItem, PlaybackHistoryPage, Session } from "./types";
 import "./styles.css";
@@ -41,11 +42,6 @@ const fallbackOverview: Overview = {
   refresh_seconds: 30,
   generated_at: new Date(0).toISOString(),
 };
-
-function pluginMountPath(): string {
-  const match = window.location.pathname.match(/^(\/api\/v1\/plugins\/[^/]+)/);
-  return match ? match[1] : "";
-}
 
 async function fetchOverview(signal?: AbortSignal): Promise<Overview> {
   const base = pluginMountPath();
