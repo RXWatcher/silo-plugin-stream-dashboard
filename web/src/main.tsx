@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { hasCoords } from "./geo";
 import { pluginMountPath } from "./mountPath";
+import { adminBackTarget } from "./navigation";
 import WorldMap from "./WorldMap";
 import type { Counts, Overview, PlaybackHistoryItem, PlaybackHistoryPage, Session } from "./types";
 import "./styles.css";
@@ -140,14 +141,15 @@ function App() {
   const activeSessions = Array.isArray(overview.sessions) ? overview.sessions : [];
   const counts = overview.counts;
   const history = overview.history?.items ? overview.history : fallbackOverview.history;
+  const backTarget = adminBackTarget(window.location.pathname);
 
   return (
     <main className="app-shell">
       <header className="topbar">
         <div>
-          <a className="back-link" href="/admin/plugins" title="Back to Continuum plugins">
+          <a className="back-link" href={backTarget.href} title={backTarget.title}>
             <ArrowLeft size={16} />
-            <span>Continuum</span>
+            <span>{backTarget.label}</span>
           </a>
           <p className="eyebrow">Continuum plugin</p>
           <h1>Stream Dashboard</h1>
