@@ -223,7 +223,7 @@ func rewritePluginAssets(body []byte, requestPath string) []byte {
 }
 
 func adminAssetPrefix(requestPath string) string {
-	if requestPath == "/admin" || requestPath == "/" {
+	if requestPath == "/admin" || requestPath == "/dashboard" || requestPath == "/" {
 		return "assets/"
 	}
 	return "../assets/"
