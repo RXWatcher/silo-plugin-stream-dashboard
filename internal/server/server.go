@@ -179,7 +179,7 @@ func hSPA(d Deps) http.HandlerFunc {
 			http.Error(w, "spa not available", http.StatusServiceUnavailable)
 			return
 		}
-		body = rewritePluginAssets(body)
+		body = rewritePluginAssets(body, r.URL.Path)
 		body = injectTheme(body, r)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
@@ -212,13 +212,21 @@ func loadIndex(webFS fs.FS) ([]byte, error) {
 	return io.ReadAll(f)
 }
 
-func rewritePluginAssets(body []byte) []byte {
+func rewritePluginAssets(body []byte, requestPath string) []byte {
 	html := string(body)
-	html = strings.ReplaceAll(html, `src="/assets/`, `src="../assets/`)
-	html = strings.ReplaceAll(html, `href="/assets/`, `href="../assets/`)
-	html = strings.ReplaceAll(html, `src="./assets/`, `src="../assets/`)
-	html = strings.ReplaceAll(html, `href="./assets/`, `href="../assets/`)
+	prefix := adminAssetPrefix(requestPath)
+	html = strings.ReplaceAll(html, `src="/assets/`, `src="`+prefix)
+	html = strings.ReplaceAll(html, `href="/assets/`, `href="`+prefix)
+	html = strings.ReplaceAll(html, `src="./assets/`, `src="`+prefix)
+	html = strings.ReplaceAll(html, `href="./assets/`, `href="`+prefix)
 	return []byte(html)
+}
+
+func adminAssetPrefix(requestPath string) string {
+	if requestPath == "/admin" || requestPath == "/" {
+		return "assets/"
+	}
+	return "../assets/"
 }
 
 func pluginBaseHref(path string) string {
