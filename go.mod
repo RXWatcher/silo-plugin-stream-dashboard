@@ -3,7 +3,7 @@ module github.com/ContinuumApp/continuum-plugin-stream-dashboard
 go 1.26.0
 
 require (
-	github.com/ContinuumApp/continuum-plugin-sdk v0.3.8
+	github.com/ContinuumApp/continuum-plugin-sdk v0.3.10
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/jackc/pgx/v5 v5.9.2
@@ -30,5 +30,3 @@ require (
 	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace github.com/ContinuumApp/continuum-plugin-sdk => /opt/continuum_plugins/continuum-plugin-sdk

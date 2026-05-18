@@ -125,22 +125,22 @@ func hOverview(d Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		counts, err := d.Store.Counts(r.Context())
 		if err != nil {
-			writeErr(w, http.StatusBadGateway, "counts_failed", err.Error())
+			writeJSON(w, http.StatusOK, emptyOverview(d, "counts_failed", err.Error()))
 			return
 		}
 		sessions, err := d.Store.Sessions(r.Context())
 		if err != nil {
-			writeErr(w, http.StatusBadGateway, "sessions_failed", err.Error())
+			writeJSON(w, http.StatusOK, emptyOverview(d, "sessions_failed", err.Error()))
 			return
 		}
 		mapSessions, err := d.Store.MapSessions(r.Context())
 		if err != nil {
-			writeErr(w, http.StatusBadGateway, "map_failed", err.Error())
+			writeJSON(w, http.StatusOK, emptyOverview(d, "map_failed", err.Error()))
 			return
 		}
 		history, err := d.Store.PlaybackHistory(r.Context(), 20, 0, retentionPolicy(r, d.HistoryRetentionPolicy), true)
 		if err != nil {
-			writeErr(w, http.StatusBadGateway, "history_failed", err.Error())
+			writeJSON(w, http.StatusOK, emptyOverview(d, "history_failed", err.Error()))
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -151,6 +151,24 @@ func hOverview(d Deps) http.HandlerFunc {
 			"refresh_seconds": refreshSeconds(d.RefreshSeconds),
 			"generated_at":    time.Now().UTC(),
 		})
+	}
+}
+
+func emptyOverview(d Deps, code, message string) map[string]any {
+	return map[string]any{
+		"counts": map[string]any{
+			"servers":  map[string]any{"total": 0, "online": 0, "offline": 0, "by_type": map[string]int{}},
+			"sessions": map[string]any{"active": 0, "transcoding": 0, "direct_play": 0},
+			"history":  map[string]any{"total": 0, "today": 0, "this_week": 0, "this_month": 0},
+			"users":    map[string]any{"unique": 0, "active_today": 0, "active_this_week": 0},
+			"media":    map[string]int{},
+		},
+		"sessions":        []any{},
+		"map_sessions":    []any{},
+		"history":         map[string]any{"items": []any{}, "total": 0, "limit": 20, "offset": 0, "synced_rows": 0, "pruned_rows": 0},
+		"refresh_seconds": refreshSeconds(d.RefreshSeconds),
+		"generated_at":    time.Now().UTC(),
+		"error":           map[string]any{"code": code, "message": message},
 	}
 }
 
@@ -196,8 +214,10 @@ func loadIndex(webFS fs.FS) ([]byte, error) {
 
 func rewritePluginAssets(body []byte) []byte {
 	html := string(body)
-	html = strings.ReplaceAll(html, `src="/assets/`, `src="./assets/`)
-	html = strings.ReplaceAll(html, `href="/assets/`, `href="./assets/`)
+	html = strings.ReplaceAll(html, `src="/assets/`, `src="../assets/`)
+	html = strings.ReplaceAll(html, `href="/assets/`, `href="../assets/`)
+	html = strings.ReplaceAll(html, `src="./assets/`, `src="../assets/`)
+	html = strings.ReplaceAll(html, `href="./assets/`, `href="../assets/`)
 	return []byte(html)
 }
 
