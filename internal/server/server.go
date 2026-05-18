@@ -160,8 +160,7 @@ func hSPA(d Deps) http.HandlerFunc {
 			http.Error(w, "spa not available", http.StatusServiceUnavailable)
 			return
 		}
-		baseHref := pluginBaseHref(r.URL.Path)
-		body = []byte(strings.Replace(string(body), "<head>", `<head><base href="`+baseHref+`">`, 1))
+		body = rewritePluginAssets(body)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(body)
@@ -175,6 +174,13 @@ func loadIndex(webFS fs.FS) ([]byte, error) {
 	}
 	defer f.Close()
 	return io.ReadAll(f)
+}
+
+func rewritePluginAssets(body []byte) []byte {
+	html := string(body)
+	html = strings.ReplaceAll(html, `src="/assets/`, `src="./assets/`)
+	html = strings.ReplaceAll(html, `href="/assets/`, `href="./assets/`)
+	return []byte(html)
 }
 
 func pluginBaseHref(path string) string {
