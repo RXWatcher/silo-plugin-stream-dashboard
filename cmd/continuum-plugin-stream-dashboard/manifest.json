@@ -1,9 +1,14 @@
 {
   "plugin_id": "continuum.stream-dashboard",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "checksum": "__CHECKSUM__",
   "continuum_api_version": "v1",
-  "supported_platforms": [{ "os": "linux", "arch": "amd64" }],
+  "supported_platforms": [
+    {
+      "os": "linux",
+      "arch": "amd64"
+    }
+  ],
   "capabilities": [
     {
       "type": "http_routes.v1",
@@ -19,10 +24,36 @@
     }
   ],
   "http_routes": [
-    { "id": "api", "method": "*", "path": "/api/*", "access": "authenticated" },
-    { "id": "assets", "method": "GET", "path": "/assets/*", "access": "public" },
-    { "id": "dashboard_root", "method": "GET", "path": "/dashboard", "access": "authenticated", "navigable": true, "navigation_label": "Stream Dashboard", "navigation_kind": "app" },
-    { "id": "dashboard_app", "method": "GET", "path": "/dashboard/*", "access": "authenticated", "navigable": true, "navigation_label": "Stream Dashboard", "navigation_kind": "app" }
+    {
+      "id": "api",
+      "method": "*",
+      "path": "/api/*",
+      "access": "authenticated"
+    },
+    {
+      "id": "assets",
+      "method": "GET",
+      "path": "/assets/*",
+      "access": "public"
+    },
+    {
+      "id": "dashboard_root",
+      "method": "GET",
+      "path": "/dashboard",
+      "access": "authenticated",
+      "navigable": true,
+      "navigation_label": "Stream Dashboard",
+      "navigation_kind": "app"
+    },
+    {
+      "id": "dashboard_app",
+      "method": "GET",
+      "path": "/dashboard/*",
+      "access": "authenticated",
+      "navigable": true,
+      "navigation_label": "Stream Dashboard",
+      "navigation_kind": "app"
+    }
   ],
   "global_config_schema": [
     {
@@ -33,7 +64,12 @@
       "required": true,
       "admin_form": {
         "fields": [
-          { "key": "database_url", "label": "Plugin database URL", "control": "ADMIN_FORM_CONTROL_TEXT", "required": true }
+          {
+            "key": "database_url",
+            "label": "Plugin database URL",
+            "control": "ADMIN_FORM_CONTROL_TEXT",
+            "required": true
+          }
         ]
       }
     },
@@ -45,7 +81,12 @@
       "required": true,
       "admin_form": {
         "fields": [
-          { "key": "database_url", "label": "Continuum source URL", "control": "ADMIN_FORM_CONTROL_TEXT", "required": true }
+          {
+            "key": "database_url",
+            "label": "Continuum source URL",
+            "control": "ADMIN_FORM_CONTROL_TEXT",
+            "required": true
+          }
         ]
       }
     },
@@ -57,30 +98,126 @@
       "admin_form": {
         "submit_label": "Save",
         "fields": [
-          { "key": "refresh_seconds", "label": "Refresh interval (seconds)", "control": "ADMIN_FORM_CONTROL_NUMBER" },
-          { "key": "default_server_lat", "label": "Default server latitude", "control": "ADMIN_FORM_CONTROL_NUMBER" },
-          { "key": "default_server_lon", "label": "Default server longitude", "control": "ADMIN_FORM_CONTROL_NUMBER" },
-          { "key": "history_retention_days", "label": "History retention days", "control": "ADMIN_FORM_CONTROL_NUMBER" },
-          { "key": "history_retention_max_rows", "label": "History max rows", "control": "ADMIN_FORM_CONTROL_NUMBER" },
-          { "key": "history_retention_min_seconds", "label": "Minimum watch seconds", "control": "ADMIN_FORM_CONTROL_NUMBER" },
-          { "key": "history_retention_completed_only", "label": "Keep completed plays only", "control": "ADMIN_FORM_CONTROL_CHECKBOX" },
-          { "key": "geoip_enabled", "label": "Enable GeoIP lookup", "control": "ADMIN_FORM_CONTROL_CHECKBOX" },
-          { "key": "geoip_database_path", "label": "GeoIP city database path", "control": "ADMIN_FORM_CONTROL_TEXT" },
-          { "key": "geoip_lookup_missing_coordinates", "label": "Fill missing session coordinates", "control": "ADMIN_FORM_CONTROL_CHECKBOX" },
-          { "key": "geoip_override_session_coordinates", "label": "Override session coordinates", "control": "ADMIN_FORM_CONTROL_CHECKBOX" },
-          { "key": "geoip_lookup_cdn_nodes", "label": "Resolve CDN node coordinates", "control": "ADMIN_FORM_CONTROL_CHECKBOX" },
-          { "key": "geoip_include_private_ips", "label": "Lookup private/local IPs", "control": "ADMIN_FORM_CONTROL_CHECKBOX" },
-          { "key": "geoip_provider_order", "label": "GeoIP provider order", "control": "ADMIN_FORM_CONTROL_TEXT" },
-          { "key": "geoip_request_timeout_seconds", "label": "GeoIP request timeout (seconds)", "control": "ADMIN_FORM_CONTROL_NUMBER" },
-          { "key": "geoip_cache_ttl_seconds", "label": "GeoIP cache TTL (seconds)", "control": "ADMIN_FORM_CONTROL_NUMBER" },
-          { "key": "geoip_cache_max_entries", "label": "GeoIP max cache entries", "control": "ADMIN_FORM_CONTROL_NUMBER" },
-          { "key": "geoip_ipapi_enabled", "label": "Enable ip-api provider", "control": "ADMIN_FORM_CONTROL_CHECKBOX" },
-          { "key": "geoip_ipapi_base_url", "label": "ip-api base URL", "control": "ADMIN_FORM_CONTROL_TEXT" },
-          { "key": "geoip_ipinfo_enabled", "label": "Enable IPinfo provider", "control": "ADMIN_FORM_CONTROL_CHECKBOX" },
-          { "key": "geoip_ipinfo_base_url", "label": "IPinfo base URL", "control": "ADMIN_FORM_CONTROL_TEXT" },
-          { "key": "geoip_ipinfo_token", "label": "IPinfo token", "control": "ADMIN_FORM_CONTROL_PASSWORD" },
-          { "key": "geoip_ipwhois_enabled", "label": "Enable ipwho.is provider", "control": "ADMIN_FORM_CONTROL_CHECKBOX" },
-          { "key": "geoip_ipwhois_base_url", "label": "ipwho.is base URL", "control": "ADMIN_FORM_CONTROL_TEXT" }
+          {
+            "key": "refresh_seconds",
+            "label": "Refresh interval (seconds)",
+            "control": "ADMIN_FORM_CONTROL_NUMBER"
+          },
+          {
+            "key": "default_server_lat",
+            "label": "Default server latitude",
+            "control": "ADMIN_FORM_CONTROL_NUMBER"
+          },
+          {
+            "key": "default_server_lon",
+            "label": "Default server longitude",
+            "control": "ADMIN_FORM_CONTROL_NUMBER"
+          },
+          {
+            "key": "history_retention_days",
+            "label": "History retention days",
+            "control": "ADMIN_FORM_CONTROL_NUMBER"
+          },
+          {
+            "key": "history_retention_max_rows",
+            "label": "History max rows",
+            "control": "ADMIN_FORM_CONTROL_NUMBER"
+          },
+          {
+            "key": "history_retention_min_seconds",
+            "label": "Minimum watch seconds",
+            "control": "ADMIN_FORM_CONTROL_NUMBER"
+          },
+          {
+            "key": "history_retention_completed_only",
+            "label": "Keep completed plays only",
+            "control": "ADMIN_FORM_CONTROL_CHECKBOX"
+          },
+          {
+            "key": "geoip_enabled",
+            "label": "Enable GeoIP lookup",
+            "control": "ADMIN_FORM_CONTROL_CHECKBOX"
+          },
+          {
+            "key": "geoip_database_path",
+            "label": "GeoIP city database path",
+            "control": "ADMIN_FORM_CONTROL_TEXT"
+          },
+          {
+            "key": "geoip_lookup_missing_coordinates",
+            "label": "Fill missing session coordinates",
+            "control": "ADMIN_FORM_CONTROL_CHECKBOX"
+          },
+          {
+            "key": "geoip_override_session_coordinates",
+            "label": "Override session coordinates",
+            "control": "ADMIN_FORM_CONTROL_CHECKBOX"
+          },
+          {
+            "key": "geoip_lookup_cdn_nodes",
+            "label": "Resolve CDN node coordinates",
+            "control": "ADMIN_FORM_CONTROL_CHECKBOX"
+          },
+          {
+            "key": "geoip_include_private_ips",
+            "label": "Lookup private/local IPs",
+            "control": "ADMIN_FORM_CONTROL_CHECKBOX"
+          },
+          {
+            "key": "geoip_provider_order",
+            "label": "GeoIP provider order",
+            "control": "ADMIN_FORM_CONTROL_TEXT"
+          },
+          {
+            "key": "geoip_request_timeout_seconds",
+            "label": "GeoIP request timeout (seconds)",
+            "control": "ADMIN_FORM_CONTROL_NUMBER"
+          },
+          {
+            "key": "geoip_cache_ttl_seconds",
+            "label": "GeoIP cache TTL (seconds)",
+            "control": "ADMIN_FORM_CONTROL_NUMBER"
+          },
+          {
+            "key": "geoip_cache_max_entries",
+            "label": "GeoIP max cache entries",
+            "control": "ADMIN_FORM_CONTROL_NUMBER"
+          },
+          {
+            "key": "geoip_ipapi_enabled",
+            "label": "Enable ip-api provider",
+            "control": "ADMIN_FORM_CONTROL_CHECKBOX"
+          },
+          {
+            "key": "geoip_ipapi_base_url",
+            "label": "ip-api base URL",
+            "control": "ADMIN_FORM_CONTROL_TEXT"
+          },
+          {
+            "key": "geoip_ipinfo_enabled",
+            "label": "Enable IPinfo provider",
+            "control": "ADMIN_FORM_CONTROL_CHECKBOX"
+          },
+          {
+            "key": "geoip_ipinfo_base_url",
+            "label": "IPinfo base URL",
+            "control": "ADMIN_FORM_CONTROL_TEXT"
+          },
+          {
+            "key": "geoip_ipinfo_token",
+            "label": "IPinfo token",
+            "control": "ADMIN_FORM_CONTROL_PASSWORD"
+          },
+          {
+            "key": "geoip_ipwhois_enabled",
+            "label": "Enable ipwho.is provider",
+            "control": "ADMIN_FORM_CONTROL_CHECKBOX"
+          },
+          {
+            "key": "geoip_ipwhois_base_url",
+            "label": "ipwho.is base URL",
+            "control": "ADMIN_FORM_CONTROL_TEXT"
+          }
         ]
       }
     }
