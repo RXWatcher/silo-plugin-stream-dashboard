@@ -53,6 +53,21 @@
       "navigable": true,
       "navigation_label": "Stream Dashboard",
       "navigation_kind": "app"
+    },
+    {
+      "id": "admin_root",
+      "method": "GET",
+      "path": "/admin",
+      "access": "admin",
+      "navigable": true,
+      "navigation_label": "Stream Dashboard",
+      "navigation_kind": "admin"
+    },
+    {
+      "id": "admin_app",
+      "method": "GET",
+      "path": "/admin/*",
+      "access": "admin"
     }
   ],
   "global_config_schema": [

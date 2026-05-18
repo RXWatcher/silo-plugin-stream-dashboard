@@ -42,6 +42,8 @@ func New(d Deps) http.Handler {
 		r.Handle("/assets/*", http.StripPrefix("/assets/", http.FileServer(http.FS(mustSub(d.WebFS, "assets")))))
 		r.Get("/dashboard", hSPA(d))
 		r.Get("/dashboard/*", hSPA(d))
+		r.Get("/admin", hSPA(d))
+		r.Get("/admin/*", hSPA(d))
 		r.Get("/", hSPA(d))
 	}
 	return r

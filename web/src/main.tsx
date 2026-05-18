@@ -26,6 +26,23 @@ type ViewMode = "map" | "globe";
 
 const GlobeView = lazy(() => import("./GlobeView"));
 
+let cachedToken = "";
+
+function captureTokenFromURL(): void {
+  const params = new URLSearchParams(window.location.search);
+  cachedToken = params.get("token") || "";
+  if (!params.has("token")) return;
+  params.delete("token");
+  const clean = window.location.pathname + (params.toString() ? `?${params.toString()}` : "") + window.location.hash;
+  window.history.replaceState(null, "", clean);
+}
+
+captureTokenFromURL();
+
+function authHeaders(): Record<string, string> {
+  return cachedToken ? { Authorization: `Bearer ${cachedToken}` } : {};
+}
+
 const emptyCounts: Counts = {
   servers: { total: 0, online: 0, offline: 0, by_type: {} },
   sessions: { active: 0, transcoding: 0, direct_play: 0 },
@@ -47,7 +64,7 @@ async function fetchOverview(signal?: AbortSignal): Promise<Overview> {
   const base = pluginMountPath();
   const response = await fetch(`${base}/api/overview`, {
     signal,
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...authHeaders() },
   });
   if (!response.ok) {
     const body = await response.text();
