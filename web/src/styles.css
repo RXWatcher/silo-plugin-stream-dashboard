@@ -617,6 +617,30 @@ h3 {
   animation: spin 0.9s linear infinite;
 }
 
+.settings-editor {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.settings-editor h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.settings-editor textarea {
+  min-height: 280px;
+  resize: vertical;
+  border: 1px solid var(--dashboard-border);
+  border-radius: 8px;
+  background: var(--dashboard-panel);
+  color: var(--dashboard-text);
+  padding: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

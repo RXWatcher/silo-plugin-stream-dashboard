@@ -61,6 +61,14 @@ func main() {
 			pool.Close()
 			return fmt.Errorf("migrate plugin schema: %w", err)
 		}
+		appCfg, err := store.New(pool, store.Config{}).ImportLegacyAppConfig(ctx, cfg)
+		if err != nil {
+			pool.Close()
+			return fmt.Errorf("import app config: %w", err)
+		}
+		appCfg.DatabaseURL = cfg.DatabaseURL
+		appCfg.SourceDatabaseURL = cfg.SourceDatabaseURL
+		cfg = appCfg
 		sourceCfg, err := pgxpool.ParseConfig(cfg.SourceDatabaseURL)
 		if err != nil {
 			pool.Close()

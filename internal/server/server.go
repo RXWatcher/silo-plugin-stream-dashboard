@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/hashicorp/go-hclog"
 
+	pluginrt "github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/runtime"
 	"github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/store"
 )
 
@@ -37,6 +38,8 @@ func New(d Deps) http.Handler {
 		r.Get("/counts", hCounts(d))
 		r.Get("/map", hMap(d))
 		r.Get("/overview", hOverview(d))
+		r.Get("/config", hGetConfig(d))
+		r.Patch("/config", hUpdateConfig(d))
 	})
 
 	if d.WebFS != nil {
@@ -50,6 +53,37 @@ func New(d Deps) http.Handler {
 		r.Get("/", hSPA(d))
 	}
 	return r
+}
+
+func hGetConfig(d Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cfg, err := d.Store.GetAppConfig(r.Context())
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "config_failed", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, cfg)
+	}
+}
+
+func hUpdateConfig(d Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var cfg pluginrt.Config
+		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+			writeErr(w, http.StatusBadRequest, "bad_json", "invalid JSON body")
+			return
+		}
+		if err := d.Store.UpdateAppConfig(r.Context(), cfg); err != nil {
+			writeErr(w, http.StatusBadRequest, "config_failed", err.Error())
+			return
+		}
+		cfg, err := d.Store.GetAppConfig(r.Context())
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "config_failed", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, cfg)
+	}
 }
 
 func requireStore(d Deps) func(http.Handler) http.Handler {

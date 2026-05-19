@@ -85,6 +85,25 @@ async function fetchOverview(signal?: AbortSignal): Promise<Overview> {
   return normalizeOverview(payload);
 }
 
+async function fetchConfig(): Promise<Record<string, unknown>> {
+  const response = await fetch(`${pluginMountPath()}/api/config`, {
+    headers: { Accept: "application/json", ...authHeaders() },
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return (await response.json()) as Record<string, unknown>;
+}
+
+async function saveConfigJSON(raw: string): Promise<Record<string, unknown>> {
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  const response = await fetch(`${pluginMountPath()}/api/config`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(parsed),
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return (await response.json()) as Record<string, unknown>;
+}
+
 function normalizeOverview(payload: Partial<Overview>): Overview {
   const history = payload.history ?? fallbackOverview.history;
   return {
@@ -107,6 +126,9 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("globe");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsJSON, setSettingsJSON] = useState("");
+  const [settingsStatus, setSettingsStatus] = useState("");
 
   const refresh = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -135,6 +157,23 @@ function App() {
     const id = window.setInterval(() => refresh(), seconds * 1000);
     return () => window.clearInterval(id);
   }, [overview.refresh_seconds]);
+
+  useEffect(() => {
+    fetchConfig()
+      .then((cfg) => setSettingsJSON(JSON.stringify(cfg, null, 2)))
+      .catch(() => setSettingsJSON(""));
+  }, []);
+
+  async function saveSettings() {
+    setSettingsStatus("");
+    try {
+      const cfg = await saveConfigJSON(settingsJSON);
+      setSettingsJSON(JSON.stringify(cfg, null, 2));
+      setSettingsStatus("Settings saved. Restart or reconfigure the plugin to apply runtime changes.");
+    } catch (err) {
+      setSettingsStatus((err as Error).message);
+    }
+  }
 
   const mapSessions = Array.isArray(overview.map_sessions) ? overview.map_sessions : [];
   const points = useMemo(() => mapSessions.filter((s) => hasCoords(s.client)), [mapSessions]);
@@ -168,6 +207,9 @@ function App() {
           <button className="icon-button" onClick={() => refresh()} type="button" title="Refresh">
             <RefreshCw size={18} className={loading ? "spin" : ""} />
           </button>
+          <button className="icon-button" onClick={() => setSettingsOpen((v) => !v)} type="button" title="Settings">
+            <Database size={18} />
+          </button>
         </div>
       </header>
 
@@ -175,6 +217,26 @@ function App() {
         <section className="notice" role="alert">
           <AlertCircle size={18} />
           <span>{friendlyError(error)}</span>
+        </section>
+      ) : null}
+
+      {settingsOpen ? (
+        <section className="notice">
+          <Database size={18} />
+          <div className="settings-editor">
+            <h2>Plugin settings</h2>
+            <textarea
+              value={settingsJSON}
+              onChange={(event) => setSettingsJSON(event.target.value)}
+              spellCheck={false}
+            />
+            <div className="topbar-actions">
+              <button type="button" onClick={() => void saveSettings()}>
+                Save settings
+              </button>
+              {settingsStatus ? <span>{settingsStatus}</span> : null}
+            </div>
+          </div>
         </section>
       ) : null}
 

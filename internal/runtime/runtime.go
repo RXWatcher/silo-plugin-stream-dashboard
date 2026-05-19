@@ -39,6 +39,51 @@ type Config struct {
 	HistoryRetentionCompletedOnly bool
 }
 
+func DefaultAppConfig() Config {
+	return Config{
+		RefreshSeconds:               30,
+		DefaultServerLat:             37.5485,
+		DefaultServerLon:             -121.9886,
+		GeoIPLookupMissingCoordinate: true,
+		GeoIPLookupCDN:               true,
+		GeoIPProviderOrder:           []string{"mmdb", "ipapi", "ipinfo", "ipwhois"},
+		GeoIPRequestTimeoutSeconds:   3,
+		GeoIPCacheTTLSeconds:         3600,
+		GeoIPCacheMaxEntries:         4096,
+		HistoryRetentionDays:         365,
+	}
+}
+
+func NormalizeAppConfig(cfg Config) Config {
+	if cfg.RefreshSeconds < 5 {
+		cfg.RefreshSeconds = 5
+	}
+	if cfg.GeoIPRequestTimeoutSeconds < 1 {
+		cfg.GeoIPRequestTimeoutSeconds = 1
+	}
+	if cfg.GeoIPCacheTTLSeconds < 60 {
+		cfg.GeoIPCacheTTLSeconds = 60
+	}
+	if cfg.GeoIPCacheMaxEntries < 100 {
+		cfg.GeoIPCacheMaxEntries = 100
+	}
+	if cfg.HistoryRetentionDays < 0 {
+		cfg.HistoryRetentionDays = 0
+	}
+	if cfg.HistoryRetentionMaxRows < 0 {
+		cfg.HistoryRetentionMaxRows = 0
+	}
+	if cfg.HistoryRetentionMinSeconds < 0 {
+		cfg.HistoryRetentionMinSeconds = 0
+	}
+	if len(cfg.GeoIPProviderOrder) == 0 {
+		cfg.GeoIPProviderOrder = []string{"mmdb", "ipapi", "ipinfo", "ipwhois"}
+	}
+	cfg.DatabaseURL = ""
+	cfg.SourceDatabaseURL = ""
+	return cfg
+}
+
 type Server struct {
 	runtimedefault.Server
 	manifest *pluginv1.PluginManifest
@@ -57,18 +102,7 @@ func (s *Server) GetManifest(context.Context, *pluginv1.GetManifestRequest) (*pl
 }
 
 func (s *Server) Configure(_ context.Context, req *pluginv1.ConfigureRequest) (*pluginv1.ConfigureResponse, error) {
-	cfg := Config{
-		RefreshSeconds:               30,
-		DefaultServerLat:             37.5485,
-		DefaultServerLon:             -121.9886,
-		GeoIPLookupMissingCoordinate: true,
-		GeoIPLookupCDN:               true,
-		GeoIPProviderOrder:           []string{"mmdb", "ipapi", "ipinfo", "ipwhois"},
-		GeoIPRequestTimeoutSeconds:   3,
-		GeoIPCacheTTLSeconds:         3600,
-		GeoIPCacheMaxEntries:         4096,
-		HistoryRetentionDays:         365,
-	}
+	cfg := DefaultAppConfig()
 	for _, e := range req.GetConfig() {
 		if e.GetValue() == nil {
 			continue
@@ -115,27 +149,11 @@ func (s *Server) Configure(_ context.Context, req *pluginv1.ConfigureRequest) (*
 	if cfg.SourceDatabaseURL == "" {
 		cfg.SourceDatabaseURL = cfg.DatabaseURL
 	}
-	if cfg.RefreshSeconds < 5 {
-		cfg.RefreshSeconds = 5
-	}
-	if cfg.GeoIPRequestTimeoutSeconds < 1 {
-		cfg.GeoIPRequestTimeoutSeconds = 1
-	}
-	if cfg.GeoIPCacheTTLSeconds < 60 {
-		cfg.GeoIPCacheTTLSeconds = 60
-	}
-	if cfg.GeoIPCacheMaxEntries < 100 {
-		cfg.GeoIPCacheMaxEntries = 100
-	}
-	if cfg.HistoryRetentionDays < 0 {
-		cfg.HistoryRetentionDays = 0
-	}
-	if cfg.HistoryRetentionMaxRows < 0 {
-		cfg.HistoryRetentionMaxRows = 0
-	}
-	if cfg.HistoryRetentionMinSeconds < 0 {
-		cfg.HistoryRetentionMinSeconds = 0
-	}
+	dbURL := cfg.DatabaseURL
+	sourceURL := cfg.SourceDatabaseURL
+	cfg = NormalizeAppConfig(cfg)
+	cfg.DatabaseURL = dbURL
+	cfg.SourceDatabaseURL = sourceURL
 	if s.onConfig != nil {
 		if err := s.onConfig(cfg); err != nil {
 			return nil, err

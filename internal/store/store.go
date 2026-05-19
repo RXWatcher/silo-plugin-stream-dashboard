@@ -2,13 +2,17 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	pluginrt "github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/runtime"
 )
 
 type Store struct {
@@ -232,8 +236,70 @@ CREATE TABLE IF NOT EXISTS sync_state (
 	value TEXT NOT NULL DEFAULT '',
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE TABLE IF NOT EXISTS app_config (
+	id INTEGER PRIMARY KEY DEFAULT 1,
+	data JSONB NOT NULL DEFAULT '{}'::jsonb,
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	CONSTRAINT app_config_singleton CHECK (id = 1)
+);
+INSERT INTO app_config (id, data) VALUES (1, '{}'::jsonb) ON CONFLICT (id) DO NOTHING;
 `)
 	return err
+}
+
+func (s *Store) GetAppConfig(ctx context.Context) (pluginrt.Config, error) {
+	var raw []byte
+	err := s.pool.QueryRow(ctx, `SELECT data FROM app_config WHERE id = 1`).Scan(&raw)
+	if err == pgx.ErrNoRows {
+		if _, err := s.pool.Exec(ctx, `INSERT INTO app_config (id, data) VALUES (1, '{}'::jsonb) ON CONFLICT (id) DO NOTHING`); err != nil {
+			return pluginrt.Config{}, fmt.Errorf("ensure app_config: %w", err)
+		}
+		return s.GetAppConfig(ctx)
+	}
+	if err != nil {
+		return pluginrt.Config{}, fmt.Errorf("get app_config: %w", err)
+	}
+	cfg := pluginrt.DefaultAppConfig()
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &cfg); err != nil {
+			return pluginrt.Config{}, fmt.Errorf("decode app_config: %w", err)
+		}
+	}
+	return pluginrt.NormalizeAppConfig(cfg), nil
+}
+
+func (s *Store) UpdateAppConfig(ctx context.Context, cfg pluginrt.Config) error {
+	cfg = pluginrt.NormalizeAppConfig(cfg)
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("encode app_config: %w", err)
+	}
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO app_config (id, data, updated_at) VALUES (1, $1, NOW())
+		ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
+	`, raw)
+	if err != nil {
+		return fmt.Errorf("update app_config: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) ImportLegacyAppConfig(ctx context.Context, legacy pluginrt.Config) (pluginrt.Config, error) {
+	current, err := s.GetAppConfig(ctx)
+	if err != nil {
+		return pluginrt.Config{}, err
+	}
+	if !reflect.DeepEqual(current, pluginrt.DefaultAppConfig()) {
+		return current, nil
+	}
+	next := pluginrt.NormalizeAppConfig(legacy)
+	if reflect.DeepEqual(next, current) {
+		return current, nil
+	}
+	if err := s.UpdateAppConfig(ctx, next); err != nil {
+		return pluginrt.Config{}, err
+	}
+	return s.GetAppConfig(ctx)
 }
 
 func (s *Store) Sessions(ctx context.Context) ([]Session, error) {
