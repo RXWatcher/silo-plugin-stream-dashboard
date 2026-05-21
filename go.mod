@@ -1,4 +1,4 @@
-module github.com/ContinuumApp/continuum-plugin-stream-dashboard
+module github.com/RXWatcher/continuum-plugin-stream-dashboard
 
 go 1.26.0
 

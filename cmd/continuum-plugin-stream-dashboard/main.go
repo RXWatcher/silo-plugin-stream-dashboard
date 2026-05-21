@@ -18,13 +18,13 @@ import (
 	publicmanifest "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginsdk/manifest"
 	sdkruntime "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginsdk/runtime"
 
-	"github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/geoip"
-	"github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/httproutes"
-	"github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/poll"
-	pluginrt "github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/runtime"
-	"github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/server"
-	"github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/store"
-	"github.com/ContinuumApp/continuum-plugin-stream-dashboard/web"
+	"github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/geoip"
+	"github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/httproutes"
+	"github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/poll"
+	pluginrt "github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/runtime"
+	"github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/server"
+	"github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/store"
+	"github.com/RXWatcher/continuum-plugin-stream-dashboard/web"
 )
 
 //go:embed manifest.json

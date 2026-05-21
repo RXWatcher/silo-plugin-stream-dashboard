@@ -11,8 +11,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	pluginrt "github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/runtime"
-	"github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/store"
+	pluginrt "github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/runtime"
+	"github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/store"
 )
 
 type stubStore struct {

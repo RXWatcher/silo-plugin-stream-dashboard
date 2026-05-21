@@ -16,8 +16,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/hashicorp/go-hclog"
 
-	pluginrt "github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/runtime"
-	"github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/store"
+	pluginrt "github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/runtime"
+	"github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/store"
 )
 
 type Deps struct {
