@@ -73,7 +73,9 @@ The `sync-playback-history` scheduled task pulls new rows from the Continuum sou
 
 ## Detailed docs
 
-- [`docs/setup-debug-flows.md`](docs/setup-debug-flows.md) — setup checklist, configuration reference, exposed routes, operational flows, debugging runbook, and common failure patterns.
+- [`docs/setup-debug-flows.md`](docs/setup-debug-flows.md) — operator runbook: health checks, two-DSN setup, history sync, config lifecycle, common failure patterns, routes reference.
+- [`docs/architecture.md`](docs/architecture.md) — module layout, data flow, scheduled vs realtime sync, health banner wiring.
+- [`docs/geoip.md`](docs/geoip.md) — provider model, MMDB vs HTTP tradeoffs, TTL cache, private-IP handling, source-field reference.
 
 ## Build and release
 
