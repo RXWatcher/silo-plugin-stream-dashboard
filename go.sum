@@ -1,5 +1,7 @@
-github.com/ContinuumApp/continuum-plugin-sdk v0.3.10 h1:GLakoOydVwyi/uwzfWg+xCjpmbIFP3uEmpuZLjkPx6g=
-github.com/ContinuumApp/continuum-plugin-sdk v0.3.10/go.mod h1:sYhMYE2FwVY5/THvEIOwVYXsCVWis5GDSTVT9dXg0H4=
+github.com/Silo-Server/silo-plugin-sdk v0.5.0 h1:0yJpD0RP1AetGsWVCXoPih2ggLjN8hVp8blS+2RkIWU=
+github.com/Silo-Server/silo-plugin-sdk v0.5.0/go.mod h1:etqmxLTwjxpFH9goAjBDfNDoqHMv2/sqUXu8yx3hNfA=
+github.com/Silo-Server/silo-plugin-sdk v0.6.0 h1:Gi9TdH9kt7b8X4xRXH493/nSYb9n0GO4VCWmlll0hKI=
+github.com/Silo-Server/silo-plugin-sdk v0.6.0/go.mod h1:etqmxLTwjxpFH9goAjBDfNDoqHMv2/sqUXu8yx3hNfA=
 github.com/bufbuild/protocompile v0.14.1 h1:iA73zAf/fyljNjQKwYzUHD6AD4R8KMasmwa/FBatYVw=
 github.com/bufbuild/protocompile v0.14.1/go.mod h1:ppVdAIhbr2H8asPk6k4pY7t9zB1OU5DoEw9xY/FUi1c=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
