@@ -229,10 +229,13 @@ CREATE TABLE IF NOT EXISTS playback_history (
 	duration_seconds DOUBLE PRECISION,
 	completed BOOLEAN NOT NULL DEFAULT FALSE,
 	client_ip TEXT NOT NULL DEFAULT '',
-	source_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- source_payload was defined historically but never populated; every field it
+-- would have held already lives in a dedicated typed column. Drop it on
+-- existing deployments so the schema converges with the table definition above.
+ALTER TABLE playback_history DROP COLUMN IF EXISTS source_payload;
 CREATE INDEX IF NOT EXISTS playback_history_ended_idx ON playback_history (ended_at DESC);
 CREATE INDEX IF NOT EXISTS playback_history_user_ended_idx ON playback_history (user_id, ended_at DESC);
 CREATE INDEX IF NOT EXISTS playback_history_media_type_idx ON playback_history (media_type);
