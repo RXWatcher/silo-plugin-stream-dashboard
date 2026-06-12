@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"sync/atomic"
 
-	pluginv1 "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
+	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 )
 
 type Server struct {

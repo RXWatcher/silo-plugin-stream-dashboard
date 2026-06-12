@@ -15,12 +15,12 @@ Lives under **Operations** alongside [`silo-plugin-notifications`](https://githu
 
 ## Dependencies
 
-- Silo plugin host (gRPC plugin runtime from [`continuum-plugin-sdk`](https://github.com/ContinuumApp/continuum-plugin-sdk)).
+- Silo plugin host (gRPC plugin runtime from [`continuum-plugin-sdk`](https://github.com/Silo-Server/silo-plugin-sdk)).
 - Read-only access to the Silo host's Postgres database (active sessions, playback history). The plugin never writes back to the Silo schema; it only reads.
 
 This plugin is otherwise standalone — it does not depend on other plugins.
 
-Host: [`ContinuumApp/silo`](https://github.com/ContinuumApp/silo).
+Host: [`Silo-Server/silo-server`](https://github.com/Silo-Server/silo-server).
 
 ## External services
 
