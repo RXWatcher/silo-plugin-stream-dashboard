@@ -94,6 +94,62 @@ func TestOnlineProviders(t *testing.T) {
 	}
 }
 
+func TestIPInfoTokenSentAsAuthorizationHeader(t *testing.T) {
+	var gotAuth, gotQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"geo":{"latitude":1,"longitude":2,"city":"X"}}`))
+	}))
+	defer server.Close()
+
+	locator, err := Open(Config{IPInfoEnabled: true, IPInfoBaseURL: server.URL, IPInfoToken: "secret-token", ProviderOrder: []string{"ipinfo"}, Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer locator.Close()
+
+	if _, _, _, _, ok := locator.Lookup(context.Background(), "8.8.8.8"); !ok {
+		t.Fatal("expected lookup result")
+	}
+	if gotAuth != "Bearer secret-token" {
+		t.Fatalf("Authorization = %q, want %q", gotAuth, "Bearer secret-token")
+	}
+	if strings.Contains(gotQuery, "secret-token") {
+		t.Fatalf("token leaked into query string: %q", gotQuery)
+	}
+}
+
+func TestValidateBaseURL(t *testing.T) {
+	valid := []string{
+		"",
+		"https://api.ipinfo.io/lookup",
+		"https://ipwho.is",
+		"https://203.0.113.10/json",
+	}
+	for _, v := range valid {
+		if err := ValidateBaseURL(v); err != nil {
+			t.Fatalf("ValidateBaseURL(%q) = %v, want nil", v, err)
+		}
+	}
+
+	invalid := []string{
+		"http://ip-api.com/json",       // not https
+		"https://127.0.0.1/json",       // loopback
+		"https://10.0.0.5/json",        // private
+		"https://192.168.1.1/json",     // private
+		"https://169.254.169.254/meta", // link-local
+		"https://0.0.0.0/json",         // unspecified
+		"://not-a-url",                 // unparseable
+	}
+	for _, v := range invalid {
+		if err := ValidateBaseURL(v); err == nil {
+			t.Fatalf("ValidateBaseURL(%q) = nil, want error", v)
+		}
+	}
+}
+
 func TestPrivateIPSkippedByDefault(t *testing.T) {
 	locator, err := Open(Config{IPWhoisEnabled: true, ProviderOrder: []string{"ipwhois"}, Timeout: time.Second})
 	if err != nil {

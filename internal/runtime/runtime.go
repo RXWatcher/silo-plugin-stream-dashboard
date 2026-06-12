@@ -6,9 +6,37 @@ import (
 	"strings"
 	"sync"
 
-	pluginv1 "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
-	"github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginsdk/runtimedefault"
+	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
+	"github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtimedefault"
+
+	"github.com/RXWatcher/silo-plugin-stream-dashboard/internal/geoip"
 )
+
+// ConfigError is a validation error surfaced from configuration writes. Handlers
+// can detect it with errors.As to return the message to the client (it carries
+// no sensitive internals), whereas other errors stay generic.
+type ConfigError struct{ msg string }
+
+func (e ConfigError) Error() string { return e.msg }
+
+// ValidateAppConfig rejects configuration that would let the geoip providers be
+// pointed at internal/loopback targets (SSRF). It is enforced on every write.
+func ValidateAppConfig(cfg Config) error {
+	checks := []struct {
+		field string
+		value string
+	}{
+		{"geoip_ipapi_base_url", cfg.GeoIPIPAPIBaseURL},
+		{"geoip_ipinfo_base_url", cfg.GeoIPIPInfoBaseURL},
+		{"geoip_ipwhois_base_url", cfg.GeoIPIPWhoisBaseURL},
+	}
+	for _, c := range checks {
+		if err := geoip.ValidateBaseURL(c.value); err != nil {
+			return ConfigError{msg: fmt.Sprintf("%s: %v", c.field, err)}
+		}
+	}
+	return nil
+}
 
 type Config struct {
 	DatabaseURL                   string

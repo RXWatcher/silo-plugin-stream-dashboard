@@ -14,9 +14,9 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	pluginv1 "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
-	publicmanifest "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginsdk/manifest"
-	sdkruntime "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginsdk/runtime"
+	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
+	publicmanifest "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/manifest"
+	sdkruntime "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtime"
 
 	"github.com/RXWatcher/silo-plugin-stream-dashboard/internal/geoip"
 	"github.com/RXWatcher/silo-plugin-stream-dashboard/internal/httproutes"
@@ -132,11 +132,10 @@ func main() {
 		}
 		scheduled.Set(st, policy)
 		httpSrv.SetHandler(server.New(server.Deps{
-			Store:                  st,
-			Logger:                 logger,
-			WebFS:                  web.FSEmbed(),
-			RefreshSeconds:         cfg.RefreshSeconds,
-			HistoryRetentionPolicy: policy,
+			Store:          st,
+			Logger:         logger,
+			WebFS:          web.FSEmbed(),
+			RefreshSeconds: cfg.RefreshSeconds,
 		}))
 		if old := poolPtr.Swap(pool); old != nil {
 			old.Close()

@@ -19,19 +19,16 @@ type stubStore struct {
 	config          pluginrt.Config
 	configErr       error
 	updateConfigErr error
-	status         map[string]any
-	statusErr      error
-	sessions       []store.Session
-	sessionsErr    error
-	counts         store.Counts
-	countsErr      error
-	mapSessions    []store.MapSession
-	mapErr         error
-	history        store.PlaybackHistoryPage
-	historyErr     error
+	status          map[string]any
+	statusErr       error
+	sessions        []store.Session
+	sessionsErr     error
+	counts          store.Counts
+	countsErr       error
+	mapSessions     []store.MapSession
+	mapErr          error
 	readOnlyHistory store.PlaybackHistoryPage
 	readOnlyErr     error
-	historyCalls    int
 	readOnlyCalls   int
 }
 
@@ -57,11 +54,6 @@ func (s *stubStore) Counts(context.Context) (store.Counts, error) {
 
 func (s *stubStore) MapSessions(context.Context) ([]store.MapSession, error) {
 	return s.mapSessions, s.mapErr
-}
-
-func (s *stubStore) PlaybackHistory(context.Context, int, int, store.RetentionPolicy, bool) (store.PlaybackHistoryPage, error) {
-	s.historyCalls++
-	return s.history, s.historyErr
 }
 
 func (s *stubStore) PlaybackHistoryReadOnly(context.Context, int, int) (store.PlaybackHistoryPage, error) {
@@ -118,20 +110,6 @@ func TestBoundedIntQuery(t *testing.T) {
 	}
 	if got := boundedIntQuery(req, "limit", 50, 1, 500); got != 50 {
 		t.Fatalf("bad limit = %d, want fallback 50", got)
-	}
-}
-
-func TestPluginBaseHref(t *testing.T) {
-	tests := map[string]string{
-		"/dashboard":                            "/",
-		"/api/v1/plugins/stream-dashboard/":     "/api/v1/plugins/stream-dashboard/",
-		"/api/v1/plugins/stream-dashboard/map":  "/api/v1/plugins/stream-dashboard/",
-		"/api/v1/plugins/42/dashboard/sessions": "/api/v1/plugins/42/",
-	}
-	for path, want := range tests {
-		if got := pluginBaseHref(path); got != want {
-			t.Fatalf("pluginBaseHref(%q) = %q, want %q", path, got, want)
-		}
 	}
 }
 
@@ -282,9 +260,6 @@ func TestOverviewUsesReadOnlyHistoryPath(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
-	}
-	if st.historyCalls != 0 {
-		t.Fatalf("syncing history path called %d times, want 0", st.historyCalls)
 	}
 	if st.readOnlyCalls == 0 {
 		t.Fatal("read-only history path was not called")

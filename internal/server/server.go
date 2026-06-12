@@ -21,11 +21,10 @@ import (
 )
 
 type Deps struct {
-	Store                  serverStore
-	Logger                 hclog.Logger
-	WebFS                  fs.FS
-	RefreshSeconds         int
-	HistoryRetentionPolicy store.RetentionPolicy
+	Store          serverStore
+	Logger         hclog.Logger
+	WebFS          fs.FS
+	RefreshSeconds int
 }
 
 var errForbidden = errors.New("admin access required")
@@ -37,7 +36,6 @@ type serverStore interface {
 	Sessions(ctx context.Context) ([]store.Session, error)
 	Counts(ctx context.Context) (store.Counts, error)
 	MapSessions(ctx context.Context) ([]store.MapSession, error)
-	PlaybackHistory(ctx context.Context, limit, offset int, policy store.RetentionPolicy, realtime bool) (store.PlaybackHistoryPage, error)
 	PlaybackHistoryReadOnly(ctx context.Context, limit, offset int) (store.PlaybackHistoryPage, error)
 }
 
@@ -48,13 +46,13 @@ type sectionHealth struct {
 }
 
 type overviewResponse struct {
-	Counts         store.Counts                 `json:"counts"`
-	Sessions       []store.Session              `json:"sessions"`
-	MapSessions    []store.MapSession           `json:"map_sessions"`
-	History        store.PlaybackHistoryPage    `json:"history"`
-	RefreshSeconds int                          `json:"refresh_seconds"`
-	GeneratedAt    time.Time                    `json:"generated_at"`
-	Health         map[string]sectionHealth     `json:"health"`
+	Counts         store.Counts              `json:"counts"`
+	Sessions       []store.Session           `json:"sessions"`
+	MapSessions    []store.MapSession        `json:"map_sessions"`
+	History        store.PlaybackHistoryPage `json:"history"`
+	RefreshSeconds int                       `json:"refresh_seconds"`
+	GeneratedAt    time.Time                 `json:"generated_at"`
+	Health         map[string]sectionHealth  `json:"health"`
 }
 
 func New(d Deps) http.Handler {
@@ -87,11 +85,21 @@ func New(d Deps) http.Handler {
 	return r
 }
 
+// logErr records the underlying error server-side so the detail is never echoed
+// to clients. Raw store/pgx errors can leak SQL text and schema details, so
+// handlers surface a generic message and rely on this for diagnostics.
+func logErr(d Deps, code string, err error) {
+	if d.Logger != nil {
+		d.Logger.Error("request failed", "code", code, "error", err)
+	}
+}
+
 func hGetConfig(d Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg, err := d.Store.GetAppConfig(r.Context())
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "config_failed", err.Error())
+			logErr(d, "config_failed", err)
+			writeErr(w, http.StatusInternalServerError, "config_failed", "failed to load configuration")
 			return
 		}
 		writeJSON(w, http.StatusOK, cfg)
@@ -100,10 +108,12 @@ func hGetConfig(d Deps) http.HandlerFunc {
 
 func requireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The host guarantees it strips any client-supplied X-Silo-User-Role and
+		// stamps the authenticated caller's role on this single header. We trust
+		// exactly that header and nothing else, so a spoofed alias cannot grant
+		// admin access. Do not add fallback headers here without an equivalent
+		// host-side strip/stamp guarantee.
 		role := strings.TrimSpace(r.Header.Get("X-Silo-User-Role"))
-		if role == "" {
-			role = strings.TrimSpace(r.Header.Get("X-Silo-Role"))
-		}
 		if strings.EqualFold(role, "admin") {
 			next.ServeHTTP(w, r)
 			return
@@ -120,12 +130,19 @@ func hUpdateConfig(d Deps) http.HandlerFunc {
 			return
 		}
 		if err := d.Store.UpdateAppConfig(r.Context(), cfg); err != nil {
-			writeErr(w, http.StatusBadRequest, "config_failed", err.Error())
+			var invalid pluginrt.ConfigError
+			if errors.As(err, &invalid) {
+				writeErr(w, http.StatusBadRequest, "config_invalid", invalid.Error())
+				return
+			}
+			logErr(d, "config_failed", err)
+			writeErr(w, http.StatusInternalServerError, "config_failed", "failed to save configuration")
 			return
 		}
 		cfg, err := d.Store.GetAppConfig(r.Context())
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "config_failed", err.Error())
+			logErr(d, "config_failed", err)
+			writeErr(w, http.StatusInternalServerError, "config_failed", "failed to load configuration")
 			return
 		}
 		writeJSON(w, http.StatusOK, cfg)
@@ -148,7 +165,8 @@ func hStatus(d Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		status, err := d.Store.Status(r.Context())
 		if err != nil {
-			writeErr(w, http.StatusBadGateway, "status_failed", err.Error())
+			logErr(d, "status_failed", err)
+			writeErr(w, http.StatusBadGateway, "status_failed", "failed to load status")
 			return
 		}
 		status["refresh_seconds"] = refreshSeconds(d.RefreshSeconds)
@@ -160,7 +178,8 @@ func hSessions(d Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sessions, err := d.Store.Sessions(r.Context())
 		if err != nil {
-			writeErr(w, http.StatusBadGateway, "sessions_failed", err.Error())
+			logErr(d, "sessions_failed", err)
+			writeErr(w, http.StatusBadGateway, "sessions_failed", "failed to load sessions")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"sessions": sessions, "count": len(sessions), "refresh_seconds": refreshSeconds(d.RefreshSeconds)})
@@ -171,7 +190,8 @@ func hCounts(d Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		counts, err := d.Store.Counts(r.Context())
 		if err != nil {
-			writeErr(w, http.StatusBadGateway, "counts_failed", err.Error())
+			logErr(d, "counts_failed", err)
+			writeErr(w, http.StatusBadGateway, "counts_failed", "failed to load counts")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"counts": counts, "refresh_seconds": refreshSeconds(d.RefreshSeconds)})
@@ -184,7 +204,8 @@ func hHistory(d Deps) http.HandlerFunc {
 		limit := boundedIntQuery(r, "limit", 50, 1, 500)
 		history, err := d.Store.PlaybackHistoryReadOnly(r.Context(), limit, (page-1)*limit)
 		if err != nil {
-			writeErr(w, http.StatusBadGateway, "history_failed", err.Error())
+			logErr(d, "history_failed", err)
+			writeErr(w, http.StatusBadGateway, "history_failed", "failed to load history")
 			return
 		}
 		writeJSON(w, http.StatusOK, history)
@@ -195,7 +216,8 @@ func hMap(d Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sessions, err := d.Store.MapSessions(r.Context())
 		if err != nil {
-			writeErr(w, http.StatusBadGateway, "map_failed", err.Error())
+			logErr(d, "map_failed", err)
+			writeErr(w, http.StatusBadGateway, "map_failed", "failed to load map sessions")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"sessions": sessions, "count": len(sessions), "refresh_seconds": refreshSeconds(d.RefreshSeconds)})
@@ -221,28 +243,32 @@ func hOverview(d Deps) http.HandlerFunc {
 
 		counts, err := d.Store.Counts(r.Context())
 		if err != nil {
-			resp.Health["counts"] = sectionHealth{OK: false, Code: "counts_failed", Message: err.Error()}
+			logErr(d, "counts_failed", err)
+			resp.Health["counts"] = sectionHealth{OK: false, Code: "counts_failed", Message: "failed to load counts"}
 		} else {
 			resp.Counts = counts
 		}
 
 		sessions, err := d.Store.Sessions(r.Context())
 		if err != nil {
-			resp.Health["sessions"] = sectionHealth{OK: false, Code: "sessions_failed", Message: err.Error()}
+			logErr(d, "sessions_failed", err)
+			resp.Health["sessions"] = sectionHealth{OK: false, Code: "sessions_failed", Message: "failed to load sessions"}
 		} else {
 			resp.Sessions = sessions
 		}
 
 		mapSessions, err := d.Store.MapSessions(r.Context())
 		if err != nil {
-			resp.Health["map"] = sectionHealth{OK: false, Code: "map_failed", Message: err.Error()}
+			logErr(d, "map_failed", err)
+			resp.Health["map"] = sectionHealth{OK: false, Code: "map_failed", Message: "failed to load map sessions"}
 		} else {
 			resp.MapSessions = mapSessions
 		}
 
 		history, err := d.Store.PlaybackHistoryReadOnly(r.Context(), 20, 0)
 		if err != nil {
-			resp.Health["history"] = sectionHealth{OK: false, Code: "history_failed", Message: err.Error()}
+			logErr(d, "history_failed", err)
+			resp.Health["history"] = sectionHealth{OK: false, Code: "history_failed", Message: "failed to load history"}
 		} else {
 			resp.History = history
 		}
@@ -253,11 +279,11 @@ func hOverview(d Deps) http.HandlerFunc {
 
 func zeroCounts() store.Counts {
 	return store.Counts{
-		Servers: store.ServerSummary{ByType: map[string]int{}},
+		Servers:  store.ServerSummary{ByType: map[string]int{}},
 		Sessions: store.SessionCounts{},
-		History: store.HistoryCounts{},
-		Users: store.UserCounts{},
-		Media: map[string]int{},
+		History:  store.HistoryCounts{},
+		Users:    store.UserCounts{},
+		Media:    map[string]int{},
 	}
 }
 
@@ -329,20 +355,6 @@ func adminAssetPrefix(requestPath string) string {
 	return "../assets/"
 }
 
-func pluginBaseHref(path string) string {
-	const marker = "/api/v1/plugins/"
-	i := strings.Index(path, marker)
-	if i < 0 {
-		return "/"
-	}
-	rest := path[i+len(marker):]
-	j := strings.IndexByte(rest, '/')
-	if j < 0 {
-		return path + "/"
-	}
-	return path[:i+len(marker)+j] + "/"
-}
-
 func safeSub(webFS fs.FS, dir string) (fs.FS, bool) {
 	if stat, err := fs.Stat(webFS, dir); err != nil || !stat.IsDir() {
 		return nil, false
@@ -371,10 +383,6 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-func intQuery(r *http.Request, key string, fallback int) int {
-	return boundedIntQuery(r, key, fallback, 1, 0)
-}
-
 func boundedIntQuery(r *http.Request, key string, fallback, min, max int) int {
 	if v := r.URL.Query().Get(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -388,21 +396,4 @@ func boundedIntQuery(r *http.Request, key string, fallback, min, max int) int {
 		}
 	}
 	return fallback
-}
-
-func retentionPolicy(r *http.Request, base store.RetentionPolicy) store.RetentionPolicy {
-	policy := base
-	if v := intQuery(r, "history_days", 0); v > 0 {
-		policy.Days = v
-	}
-	if v := intQuery(r, "history_rows", 0); v > 0 {
-		policy.MaxRows = v
-	}
-	if v := intQuery(r, "history_min_seconds", 0); v > 0 {
-		policy.MinWatchSeconds = v
-	}
-	if r.URL.Query().Get("history_completed_only") == "true" {
-		policy.CompletedOnly = true
-	}
-	return policy
 }

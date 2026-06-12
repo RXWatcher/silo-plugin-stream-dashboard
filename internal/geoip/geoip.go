@@ -226,7 +226,7 @@ func (p mmdbProvider) Close() {
 
 func (p mmdbProvider) Lookup(_ context.Context, ipText string) (Location, bool, error) {
 	record, err := p.db.City(net.ParseIP(ipText))
-	if err != nil || record == nil || record.Location.Latitude == 0 && record.Location.Longitude == 0 {
+	if err != nil || record == nil || (record.Location.Latitude == 0 && record.Location.Longitude == 0) {
 		return Location{}, false, err
 	}
 	return Location{Lat: record.Location.Latitude, Lon: record.Location.Longitude, Location: formatMMDBLocation(record)}, true, nil
@@ -253,10 +253,10 @@ func (p ipAPIProvider) Lookup(ctx context.Context, ipText string) (Location, boo
 		Lat        float64 `json:"lat"`
 		Lon        float64 `json:"lon"`
 	}
-	if err := getJSON(ctx, p.client, endpoint+"?"+q.Encode(), &out); err != nil {
+	if err := getJSON(ctx, p.client, endpoint+"?"+q.Encode(), nil, &out); err != nil {
 		return Location{}, false, err
 	}
-	if out.Status != "success" || out.Lat == 0 && out.Lon == 0 {
+	if out.Status != "success" || (out.Lat == 0 && out.Lon == 0) {
 		return Location{}, false, fmt.Errorf("ip-api lookup failed: %s", out.Message)
 	}
 	return Location{Lat: out.Lat, Lon: out.Lon, Location: joinLocation(out.City, out.RegionName, out.Country)}, true, nil
@@ -273,12 +273,11 @@ func (p ipInfoProvider) Close()       {}
 
 func (p ipInfoProvider) Lookup(ctx context.Context, ipText string) (Location, bool, error) {
 	endpoint := strings.TrimRight(p.baseURL, "/") + "/" + url.PathEscape(ipText)
-	q := url.Values{}
+	var headers http.Header
 	if p.token != "" {
-		q.Set("token", p.token)
-	}
-	if encoded := q.Encode(); encoded != "" {
-		endpoint += "?" + encoded
+		// Pass the token via Authorization header instead of the query string so
+		// it is not leaked through request logs, referrers, or proxies.
+		headers = http.Header{"Authorization": []string{"Bearer " + p.token}}
 	}
 	var out struct {
 		Geo struct {
@@ -293,7 +292,7 @@ func (p ipInfoProvider) Lookup(ctx context.Context, ipText string) (Location, bo
 		Region  string `json:"region"`
 		Country string `json:"country"`
 	}
-	if err := getJSON(ctx, p.client, endpoint, &out); err != nil {
+	if err := getJSON(ctx, p.client, endpoint, headers, &out); err != nil {
 		return Location{}, false, err
 	}
 	lat, lon := out.Geo.Latitude, out.Geo.Longitude
@@ -325,21 +324,26 @@ func (p ipWhoisProvider) Lookup(ctx context.Context, ipText string) (Location, b
 		Latitude  float64 `json:"latitude"`
 		Longitude float64 `json:"longitude"`
 	}
-	if err := getJSON(ctx, p.client, endpoint, &out); err != nil {
+	if err := getJSON(ctx, p.client, endpoint, nil, &out); err != nil {
 		return Location{}, false, err
 	}
-	if !out.Success || out.Latitude == 0 && out.Longitude == 0 {
+	if !out.Success || (out.Latitude == 0 && out.Longitude == 0) {
 		return Location{}, false, fmt.Errorf("ipwhois lookup failed: %s", out.Message)
 	}
 	return Location{Lat: out.Latitude, Lon: out.Longitude, Location: joinLocation(out.City, out.Region, out.Country)}, true, nil
 }
 
-func getJSON(ctx context.Context, client *http.Client, endpoint string, out any) error {
+func getJSON(ctx context.Context, client *http.Client, endpoint string, headers http.Header, out any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Accept", "application/json")
+	for key, values := range headers {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -349,6 +353,38 @@ func getJSON(ctx context.Context, client *http.Client, endpoint string, out any)
 		return fmt.Errorf("geoip provider returned HTTP %d", resp.StatusCode)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+// ValidateBaseURL guards the configurable geoip provider base URLs against
+// server-side request forgery. The plugin fetches these URLs server-side, so a
+// caller able to set them could otherwise probe internal services. We require
+// an https URL with a host that is not an IP literal inside loopback, private,
+// link-local, or unspecified ranges. DNS names are allowed because resolving and
+// pinning every possible record is out of scope here; the scheme + literal
+// checks block the obvious internal-target cases.
+func ValidateBaseURL(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	if !strings.EqualFold(u.Scheme, "https") {
+		return fmt.Errorf("must use https scheme")
+	}
+	host := u.Hostname()
+	if host == "" {
+		return fmt.Errorf("missing host")
+	}
+	if addr, err := netip.ParseAddr(host); err == nil {
+		if addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast() ||
+			addr.IsLinkLocalMulticast() || addr.IsUnspecified() {
+			return fmt.Errorf("host %q targets a private or loopback address", host)
+		}
+	}
+	return nil
 }
 
 func isPrivateOrLocal(ipText string) bool {

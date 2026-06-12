@@ -25,15 +25,20 @@ type Store struct {
 	geoIPOverrideCoordinates     bool
 	geoIPLookupCDN               bool
 	historySyncMu                sync.Mutex
-	lastRealtimeHistorySync      time.Time
 }
 
 const (
-	historyBatchLimit           = 5000
-	historyScheduledMaxBatches  = 20
-	historyRealtimeMaxBatches   = 1
-	historyRealtimeSyncInterval = 10 * time.Second
-	historyCursorOverlap        = 2 * time.Minute
+	historyBatchLimit          = 5000
+	historyScheduledMaxBatches = 20
+	historyCursorOverlap       = 2 * time.Minute
+
+	// mapSessionsMaxRows caps how many sessions a single /api/map or
+	// /api/overview request will enrich. Each row may trigger an outbound geoip
+	// HTTP lookup, so the cap bounds the worst-case latency and outbound fan-out.
+	mapSessionsMaxRows = 200
+	// mapGeoIPConcurrency bounds how many geoip lookups run in parallel so a
+	// burst of cache-miss sessions cannot block the handler for count * timeout.
+	mapGeoIPConcurrency = 8
 )
 
 type Config struct {
@@ -270,6 +275,9 @@ func (s *Store) GetAppConfig(ctx context.Context) (pluginrt.Config, error) {
 
 func (s *Store) UpdateAppConfig(ctx context.Context, cfg pluginrt.Config) error {
 	cfg = pluginrt.NormalizeAppConfig(cfg)
+	if err := pluginrt.ValidateAppConfig(cfg); err != nil {
+		return err
+	}
 	raw, err := json.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("encode app_config: %w", err)
@@ -450,69 +458,87 @@ func (s *Store) MapSessions(ctx context.Context) ([]MapSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := make([]MapSession, 0, len(sessions))
-	for _, session := range sessions {
-		client := MapEndpoint{
-			IP:       session.IPAddress,
-			Location: session.Location,
-			Lat:      session.GeoLat,
-			Lon:      session.GeoLon,
-		}
-		if client.Lat != nil && client.Lon != nil {
-			client.Source = "database"
-		}
-		client = s.enrichGeoIP(ctx, client, session.IPAddress, false)
-		if client.Lat == nil || client.Lon == nil {
-			continue
-		}
-		item := MapSession{
-			SessionID:  session.ID,
-			UserName:   session.UserName,
-			MediaTitle: session.MediaTitle,
-			ServerName: session.ServerName,
-			Client:     client,
-		}
-		if session.CDNNodeIP != "" {
-			cdn := MapEndpoint{IP: session.CDNNodeIP, Location: session.CDNNodeLocation}
-			if s.geoIPLookupCDN {
-				cdn = s.enrichGeoIP(ctx, cdn, session.CDNNodeIP, true)
+	if len(sessions) > mapSessionsMaxRows {
+		sessions = sessions[:mapSessionsMaxRows]
+	}
+
+	// Each session may trigger outbound geoip lookups. Run them through a
+	// bounded worker pool so the handler latency is capped instead of scaling
+	// with count * timeout, while preserving the input ordering of results.
+	results := make([]*MapSession, len(sessions))
+	concurrency := mapGeoIPConcurrency
+	if concurrency > len(sessions) {
+		concurrency = len(sessions)
+	}
+	if concurrency < 1 {
+		return []MapSession{}, nil
+	}
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+	for i := range sessions {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(idx int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			if item, ok := s.buildMapSession(ctx, sessions[idx]); ok {
+				results[idx] = &item
 			}
-			item.CDN = &cdn
+		}(i)
+	}
+	wg.Wait()
+
+	out := make([]MapSession, 0, len(sessions))
+	for _, item := range results {
+		if item != nil {
+			out = append(out, *item)
 		}
-		if session.ServerName != "" {
-			lat, lon := s.defaultServerLat, s.defaultServerLon
-			item.Server = &MapEndpoint{Name: session.ServerName, Lat: &lat, Lon: &lon, Source: "config"}
-		}
-		out = append(out, item)
 	}
 	return out, nil
 }
 
+func (s *Store) buildMapSession(ctx context.Context, session Session) (MapSession, bool) {
+	client := MapEndpoint{
+		IP:       session.IPAddress,
+		Location: session.Location,
+		Lat:      session.GeoLat,
+		Lon:      session.GeoLon,
+	}
+	if client.Lat != nil && client.Lon != nil {
+		client.Source = "database"
+	}
+	client = s.enrichGeoIP(ctx, client, session.IPAddress, false)
+	if client.Lat == nil || client.Lon == nil {
+		return MapSession{}, false
+	}
+	item := MapSession{
+		SessionID:  session.ID,
+		UserName:   session.UserName,
+		MediaTitle: session.MediaTitle,
+		ServerName: session.ServerName,
+		Client:     client,
+	}
+	if session.CDNNodeIP != "" {
+		cdn := MapEndpoint{IP: session.CDNNodeIP, Location: session.CDNNodeLocation}
+		if s.geoIPLookupCDN {
+			cdn = s.enrichGeoIP(ctx, cdn, session.CDNNodeIP, true)
+		}
+		item.CDN = &cdn
+	}
+	if session.ServerName != "" {
+		lat, lon := s.defaultServerLat, s.defaultServerLon
+		item.Server = &MapEndpoint{Name: session.ServerName, Lat: &lat, Lon: &lon, Source: "config"}
+	}
+	return item, true
+}
+
 func (s *Store) SyncPlaybackHistory(ctx context.Context, policy RetentionPolicy) (int, int, error) {
-	return s.syncPlaybackHistory(ctx, policy, historyScheduledMaxBatches, false)
-}
-
-func (s *Store) SyncPlaybackHistoryRealtime(ctx context.Context, policy RetentionPolicy) (int, int, error) {
-	return s.syncPlaybackHistory(ctx, policy, historyRealtimeMaxBatches, true)
-}
-
-func (s *Store) syncPlaybackHistory(ctx context.Context, policy RetentionPolicy, maxBatches int, realtime bool) (int, int, error) {
+	maxBatches := historyScheduledMaxBatches
 	if maxBatches < 1 {
 		maxBatches = 1
 	}
-	if realtime {
-		if !s.historySyncMu.TryLock() {
-			return 0, 0, nil
-		}
-		defer s.historySyncMu.Unlock()
-		if !s.lastRealtimeHistorySync.IsZero() && time.Since(s.lastRealtimeHistorySync) < historyRealtimeSyncInterval {
-			return 0, 0, nil
-		}
-		s.lastRealtimeHistorySync = time.Now()
-	} else {
-		s.historySyncMu.Lock()
-		defer s.historySyncMu.Unlock()
-	}
+	s.historySyncMu.Lock()
+	defer s.historySyncMu.Unlock()
 
 	source := s.source()
 	cursorEndedAt, cursorSessionID, err := s.historyCursor(ctx)
@@ -610,7 +636,7 @@ ON CONFLICT (session_id) DO NOTHING`,
 }
 
 func afterHistoryCursor(endedAt time.Time, sessionID string, cursorEndedAt time.Time, cursorSessionID string) bool {
-	return endedAt.After(cursorEndedAt) || endedAt.Equal(cursorEndedAt) && sessionID > cursorSessionID
+	return endedAt.After(cursorEndedAt) || (endedAt.Equal(cursorEndedAt) && sessionID > cursorSessionID)
 }
 
 func (s *Store) historyCursor(ctx context.Context) (time.Time, string, error) {
@@ -704,35 +730,6 @@ WHERE session_id IN (
 		total += int(tag.RowsAffected())
 	}
 	return total, nil
-}
-
-func (s *Store) PlaybackHistory(ctx context.Context, limit, offset int, policy RetentionPolicy, realtime bool) (PlaybackHistoryPage, error) {
-	if limit < 1 {
-		limit = 50
-	}
-	if limit > 200 {
-		limit = 200
-	}
-	if offset < 0 {
-		offset = 0
-	}
-	synced, pruned := 0, 0
-	var err error
-	if realtime {
-		synced, pruned, err = s.SyncPlaybackHistoryRealtime(ctx, policy)
-	} else {
-		synced, pruned, err = s.SyncPlaybackHistory(ctx, policy)
-	}
-	if err != nil {
-		return PlaybackHistoryPage{}, err
-	}
-	page, err := s.PlaybackHistoryReadOnly(ctx, limit, offset)
-	if err != nil {
-		return PlaybackHistoryPage{}, err
-	}
-	page.SyncedRows = synced
-	page.PrunedRows = pruned
-	return page, nil
 }
 
 func (s *Store) PlaybackHistoryReadOnly(ctx context.Context, limit, offset int) (PlaybackHistoryPage, error) {
