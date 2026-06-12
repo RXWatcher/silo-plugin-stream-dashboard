@@ -59,6 +59,11 @@ func New(d Deps) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 
+	// The expensive read endpoints fan out across the database and may trigger
+	// outbound geoip lookups, so they get a per-process minimum refresh interval
+	// floor to bound amplification from rapid-refresh clients.
+	limiter := newRateLimiter(minInterval)
+
 	r.Route("/api", func(r chi.Router) {
 		r.Use(requireStore(d))
 		r.Use(requireAdmin)
@@ -66,8 +71,8 @@ func New(d Deps) http.Handler {
 		r.Get("/sessions", hSessions(d))
 		r.Get("/history", hHistory(d))
 		r.Get("/counts", hCounts(d))
-		r.Get("/map", hMap(d))
-		r.Get("/overview", hOverview(d))
+		r.Get("/map", limiter.throttle("map", hMap(d)))
+		r.Get("/overview", limiter.throttle("overview", hOverview(d)))
 		r.Get("/config", hGetConfig(d))
 		r.Patch("/config", hUpdateConfig(d))
 	})
